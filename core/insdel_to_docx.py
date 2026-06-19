@@ -158,7 +158,7 @@ class InsDelToDocx:
         # ── 段落（含格式）──
         p = OxmlElement("w:p")
 
-        # 段落屬性：單行間距
+        # 段落屬性：單行間距 + 首行懸掛 0.5 字符
         pPr = OxmlElement("w:pPr")
         # 行距：240 = 單行間距
         spacing = OxmlElement("w:spacing")
@@ -167,6 +167,11 @@ class InsDelToDocx:
         spacing.set(qn("w:after"), "0")
         spacing.set(qn("w:before"), "0")
         pPr.append(spacing)
+        # 首行懸掛 0.5 字符：w:left + w:hanging 同值 = 後續行內縮，首行不縮
+        ind = OxmlElement("w:ind")
+        ind.set(qn("w:left"), "120")
+        ind.set(qn("w:hanging"), "120")
+        pPr.append(ind)
         p.append(pPr)
 
         # 腳注編號 run（10pt + 上標）
