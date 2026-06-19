@@ -145,6 +145,8 @@ class InsDelToDocx:
         """
         在 footnotes.xml 中加入一個腳注定義。
         回傳 footnote ID（供 reference 引用）。
+
+        腳注格式：10pt 字、單行間距、凸排對齊。
         """
         fn_id = self._next_fn_id
         self._next_fn_id += 1
@@ -153,12 +155,33 @@ class InsDelToDocx:
         footnote = OxmlElement("w:footnote")
         footnote.set(qn("w:id"), str(fn_id))
 
-        # footnote 內的段落
+        # ── 段落（含格式）──
         p = OxmlElement("w:p")
-        # 腳注編號 run
+
+        # 段落屬性：單行間距 + 凸排
+        pPr = OxmlElement("w:pPr")
+        # 行距：240 = 單行間距
+        spacing = OxmlElement("w:spacing")
+        spacing.set(qn("w:line"), "240")
+        spacing.set(qn("w:lineRule"), "auto")
+        spacing.set(qn("w:after"), "0")
+        spacing.set(qn("w:before"), "0")
+        pPr.append(spacing)
+        # 凸排：第二行起內縮 420 twip，與第一行文字對齊
+        ind = OxmlElement("w:ind")
+        ind.set(qn("w:hanging"), "420")
+        pPr.append(ind)
+        p.append(pPr)
+
+        # 腳注編號 run（10pt + 上標）
         r1 = OxmlElement("w:r")
         rPr1 = OxmlElement("w:rPr")
-        # 上標樣式
+        sz1 = OxmlElement("w:sz")
+        sz1.set(qn("w:val"), "20")          # 10pt = 20 half-points
+        rPr1.append(sz1)
+        szCs1 = OxmlElement("w:szCs")
+        szCs1.set(qn("w:val"), "20")
+        rPr1.append(szCs1)
         vertAlign = OxmlElement("w:vertAlign")
         vertAlign.set(qn("w:val"), "superscript")
         rPr1.append(vertAlign)
@@ -167,8 +190,16 @@ class InsDelToDocx:
         r1.append(fnRef)
         p.append(r1)
 
-        # 腳注文字 run
+        # 腳注文字 run（10pt）
         r2 = OxmlElement("w:r")
+        rPr2 = OxmlElement("w:rPr")
+        sz2 = OxmlElement("w:sz")
+        sz2.set(qn("w:val"), "20")          # 10pt
+        rPr2.append(sz2)
+        szCs2 = OxmlElement("w:szCs")
+        szCs2.set(qn("w:val"), "20")
+        rPr2.append(szCs2)
+        r2.append(rPr2)
         t2 = OxmlElement("w:t")
         t2.set(qn("xml:space"), "preserve")
         t2.text = " " + fn_text
