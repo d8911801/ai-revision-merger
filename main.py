@@ -28,17 +28,37 @@ def run_cli(args):
 
     exit_code = 0
 
-    # ── 讀取 Markdown ──
-    md_path = args.markdown
-    if os.path.exists(md_path):
-        with open(md_path, "r", encoding="utf-8") as f:
-            md_content = f.read()
-        print(f"[CLI] 已讀取 Markdown: {md_path} ({len(md_content)} 字元)")
-    else:
-        md_content = md_path  # 直接當作文字內容
-        print(f"[CLI] 使用內嵌 Markdown 文字 ({len(md_content)} 字元)")
+    # ── 管線 0：兩個 Word 檔案直接 Compare ──
+    if args.original and args.revised:
+        print("[CLI] 管線: 兩個 Word 檔案直接 Compare")
+        if not output_path:
+            output_path = suggest_output_path(args.original)
 
-    valid, msg = validate_markdown(md_content)
+        wm = WordMerger()
+        success, msg = wm.compare_documents(
+            original_path=args.original,
+            revised_path=args.revised,
+            output_path=output_path,
+            author_name=args.author or "AI Revision Merger",
+        )
+        if success:
+            print(f"[CLI] ✅ {msg}")
+        else:
+            print(f"[CLI] ❌ {msg}")
+            exit_code = 1
+
+    # ── 讀取 Markdown ──
+    elif args.markdown:
+        md_path = args.markdown
+        if os.path.exists(md_path):
+            with open(md_path, "r", encoding="utf-8") as f:
+                md_content = f.read()
+            print(f"[CLI] 已讀取 Markdown: {md_path} ({len(md_content)} 字元)")
+        else:
+            md_content = md_path  # 直接當作文字內容
+            print(f"[CLI] 使用內嵌 Markdown 文字 ({len(md_content)} 字元)")
+
+        valid, msg = validate_markdown(md_content)
     if not valid:
         print(f"[CLI] ✗ Markdown 驗證失敗: {msg}")
         return 1
@@ -166,6 +186,7 @@ def main():
     )
     parser.add_argument("--cli", action="store_true", help="使用 CLI 模式（預設為 GUI）")
     parser.add_argument("--original", "-o", help="原始 Word 檔案路徑 (old.docx)")
+    parser.add_argument("--revised", "-r", help="修訂後 Word 檔案路徑 (new.docx)，與 --original 搭配直接 Compare")
     parser.add_argument("--markdown", "-m", help="Markdown 檔案路徑，或直接傳入 Markdown 文字")
     parser.add_argument("--output", help="輸出 DOCX 路徑（若不指定則自動建議）")
     parser.add_argument("--reference-docx", help="選用：Word 模板 (reference.docx)")
@@ -175,8 +196,8 @@ def main():
 
     if args.cli:
         # CLI 模式
-        if not args.markdown:
-            print("❌ CLI 模式需指定 --markdown 參數")
+        if not args.markdown and not (args.original and args.revised):
+            print("❌ CLI 模式需指定 --markdown 或 (--original + --revised) 參數")
             sys.exit(1)
         sys.exit(run_cli(args))
     else:

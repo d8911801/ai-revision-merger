@@ -118,7 +118,7 @@ class WordMerger:
             #     Granularity              # 比較精細度
             # )
             try:
-                original_doc.Compare(
+                compared_doc = original_doc.Compare(
                     os.path.abspath(revised_path),
                     author_name,
                     wdConst.wdCompareTargetNew if wdConst else 1,
@@ -131,19 +131,32 @@ class WordMerger:
                 self._quit_word()
                 return False, f"Word Compare 執行失敗：{e}", None
 
+            if compared_doc is None:
+                try:
+                    compared_doc = self._app.ActiveDocument
+                except Exception:
+                    compared_doc = None
+
+            if compared_doc is None:
+                self._safe_close_doc(original_doc)
+                self._quit_word()
+                return False, "Word Compare 未返回比較結果文件", None
+
+            self._safe_close_doc(original_doc)
+
             # 接受所有修訂後另存（保留 Track Changes）
-            self._finalize_document(original_doc)
+            self._finalize_document(compared_doc)
 
             # 另存為輸出檔案
             output_abs = os.path.abspath(final_output_path)
             try:
-                original_doc.SaveAs2(output_abs, FileFormat=16)  # wdFormatDocumentDefault
+                compared_doc.SaveAs2(output_abs, FileFormat=16)  # wdFormatDocumentDefault
             except Exception:
                 # Fallback: try SaveAs
-                original_doc.SaveAs(output_abs, FileFormat=16)
+                compared_doc.SaveAs(output_abs, FileFormat=16)
 
             # 關閉文件
-            original_doc.Close(SaveChanges=False)
+            compared_doc.Close(SaveChanges=False)
 
             # 關閉 Word
             self._quit_word()

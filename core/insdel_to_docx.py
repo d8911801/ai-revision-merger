@@ -330,17 +330,9 @@ class InsDelToDocx:
         del_elem.set(qn("w:author"), self.author)
         del_elem.set(qn("w:date"), now)
 
-        # Word 對刪除修訂的慣用結構是 w:del 內含一個實際的 w:r。
-        # 若直接把 w:delText 掛在外層，顯示時常被當成一般格式文字。
+        # 只標記「這是刪除修訂」，不要把紅色/刪除線硬寫進文字本身。
+        # 顯示樣式交給 Word 的修訂顯示設定，這樣拒絕刪除後才不會殘留格式。
         del_run = OxmlElement("w:r")
-        del_rPr = OxmlElement("w:rPr")
-        strike = OxmlElement("w:strike")
-        strike.set(qn("w:val"), "true")
-        del_rPr.append(strike)
-        color = OxmlElement("w:color")
-        color.set(qn("w:val"), "FF0000")
-        del_rPr.append(color)
-        del_run.append(del_rPr)
 
         del_text = OxmlElement("w:delText")
         del_text.set(qn("xml:space"), "preserve")
@@ -359,15 +351,9 @@ class InsDelToDocx:
         ins_elem.set(qn("w:author"), self.author)
         ins_elem.set(qn("w:date"), now)
 
+        # 同樣不要把藍字底線寫進新增內容本身。
+        # 接受修訂後，新增文字就會自然回到正文格式。
         ins_run = OxmlElement("w:r")
-        ins_rPr = OxmlElement("w:rPr")
-        underline = OxmlElement("w:u")
-        underline.set(qn("w:val"), "single")
-        ins_rPr.append(underline)
-        color = OxmlElement("w:color")
-        color.set(qn("w:val"), "0000FF")
-        ins_rPr.append(color)
-        ins_run.append(ins_rPr)
 
         t_elem = OxmlElement("w:t")
         t_elem.set(qn("xml:space"), "preserve")

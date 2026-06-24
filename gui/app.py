@@ -43,6 +43,7 @@ class RevisionMergerApp:
 
         # 狀態變數
         self.original_path = tk.StringVar()
+        self.revised_path = tk.StringVar()      # 修訂後 Word 檔案（直接 Compare 用）
         self.reference_path = tk.StringVar()
         self.markdown_text = ""
         self.is_processing = False
@@ -69,17 +70,20 @@ class RevisionMergerApp:
         # ── 區塊 1：選擇原始 Word ──
         self._build_file_section(main_frame, 0)
 
-        # ── 區塊 2：選擇參考模板（可選）──
-        self._build_reference_section(main_frame, 1)
+        # ── 區塊 2：選擇修訂後 Word（直接 Compare 用）──
+        self._build_revised_section(main_frame, 1)
 
-        # ── 區塊 3：Markdown 輸入區 ──
-        self._build_markdown_section(main_frame, 2)
+        # ── 區塊 3：選擇參考模板（可選）──
+        self._build_reference_section(main_frame, 2)
 
-        # ── 區塊 4：執行按鈕 ──
-        self._build_action_section(main_frame, 3)
+        # ── 區塊 4：Markdown 輸入區 ──
+        self._build_markdown_section(main_frame, 3)
 
-        # ── 區塊 5：狀態／日誌輸出 ──
-        self._build_status_section(main_frame, 4)
+        # ── 區塊 5：執行按鈕 ──
+        self._build_action_section(main_frame, 4)
+
+        # ── 區塊 6：狀態／日誌輸出 ──
+        self._build_status_section(main_frame, 5)
 
     def _build_file_section(self, parent, row):
         """選擇原始 Word 檔案區塊"""
@@ -108,6 +112,35 @@ class RevisionMergerApp:
         hint = ttk.Label(
             frame,
             text="若有 old.docx 則產出追蹤修訂；不選則只做 Markdown → DOCX 轉換",
+            font=("Microsoft JhengHei", 26),
+            foreground="gray",
+        )
+        hint.grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+    def _build_revised_section(self, parent, row):
+        """選擇修訂後 Word 檔案區塊（直接 Compare 用）"""
+        frame = ttk.LabelFrame(parent, text="修訂後 Word 檔案（選用）", padding="8")
+        frame.grid(row=row, column=0, sticky="ew", pady=(0, 8))
+        frame.columnconfigure(0, weight=1)
+
+        path_entry = ttk.Entry(
+            frame,
+            textvariable=self.revised_path,
+            font=("Microsoft JhengHei", 28),
+        )
+        path_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+        btn_select = ttk.Button(
+            frame,
+            text="選擇檔案...",
+            command=self._select_revised,
+            width=16,
+        )
+        btn_select.grid(row=0, column=1, sticky="e")
+
+        hint = ttk.Label(
+            frame,
+            text="若有修訂後的 .docx，可與原始檔案直接 Compare（不需 Markdown）",
             font=("Microsoft JhengHei", 26),
             foreground="gray",
         )
@@ -253,6 +286,19 @@ class RevisionMergerApp:
             self.original_path.set(path)
             self._log(f"已選擇原始檔案：{os.path.basename(path)}")
 
+    def _select_revised(self):
+        """選擇修訂後 Word 檔案"""
+        path = filedialog.askopenfilename(
+            title="選擇修訂後 Word 檔案",
+            filetypes=[
+                ("Word 文件", "*.docx"),
+                ("所有檔案", "*.*"),
+            ],
+        )
+        if path:
+            self.revised_path.set(path)
+            self._log(f"已選擇修訂後檔案：{os.path.basename(path)}")
+
     def _select_reference(self):
         """選擇 Word 模板"""
         path = filedialog.askopenfilename(
@@ -312,6 +358,17 @@ class RevisionMergerApp:
             if not valid:
                 errors.append(f"原始檔案：{msg}")
 
+        # 檢查修訂後 Word（可選）
+        revised_docx = self.revised_path.get().strip()
+        if revised_docx:
+            valid, msg = validate_docx(revised_docx)
+            if not valid:
+                errors.append(f"修訂後檔案：{msg}")
+
+        # 若已有兩個 Word 檔案 → 直接 Compare，不需 Markdown
+        if orig_path and revised_docx:
+            return errors
+
         # 檢查 Markdown 內容
         md_content = self.md_text.get("1.0", tk.END)
         valid, msg = validate_markdown(md_content)
@@ -324,6 +381,13 @@ class RevisionMergerApp:
         """背景執行合併流程"""
         try:
             orig_path = self.original_path.get().strip()
+            revised_docx = self.revised_path.get().strip()
+
+            # ── 管線 0：兩個 Word 檔案 → 直接 Compare（最高優先）──
+            if orig_path and revised_docx:
+                self._run_direct_compare(orig_path, revised_docx)
+                return
+
             ref_path = self.reference_path.get() or None
             md_content = self.md_text.get("1.0", tk.END).strip()
 
@@ -342,6 +406,26 @@ class RevisionMergerApp:
         except Exception as e:
             self._log(f"✗ 未預期錯誤：{e}")
             self.root.after(0, self._on_merge_failed, str(e))
+
+    def _run_direct_compare(self, orig_path, revised_docx):
+        """模式 0：兩個 Word 檔案直接 Compare（不需 Markdown）"""
+        self._log("【直接比較模式】兩個 Word 檔案直接 Compare...")
+        output_path = suggest_output_path(orig_path)
+
+        success, msg = self.merger.compare_documents(
+            original_path=orig_path,
+            revised_path=revised_docx,
+            output_path=output_path,
+        )
+
+        if not success:
+            self._log(f"✗ 比較失敗：{msg}")
+            self.root.after(0, self._on_merge_failed, msg)
+            return
+
+        self._log(f"✓ 追蹤修訂文件已產出：{output_path}")
+        self._last_output_dir = os.path.dirname(output_path)
+        self.root.after(0, self._on_merge_success, output_path, True)
 
     def _run_full_merge(self, orig_path, ref_path, md_content):
         """模式 1：有 old.docx → Markdown → DOCX → Word Compare → 追蹤修訂"""
